@@ -1,7 +1,21 @@
-This software is provided for ACADEMIC AND NON-COMMERCIAL RESEARCH PURPOSES ONLY.
+VQ-WAVE ACADEMIC SOFTWARE LICENSE AGREEMENT
 
-Commercial Use: Strictly prohibited without prior written consent from the authors.
+1. GRANT OF LICENSE
+Permission is hereby granted, free of charge, to any person obtaining a copy of the VQ-Wave software, model weights, and associated documentation files (the "Software"), to use the Software solely for ACADEMIC AND NON-COMMERCIAL RESEARCH PURPOSES, subject to the following conditions:
 
-Clinical Use: This model is for research use only. It has not been approved for clinical diagnosis or patient management.
+2. COMMERCIAL USE RESTRICTION
+The Software may NOT be used for commercial purposes. "Commercial purposes" include, but are not limited to:
+   (a) Proving, developing, or testing a product or service to be sold;
+   (b) Using the Software to provide a service to third parties for a fee;
+   (c) Internal use by a commercial entity for any purpose other than pure research.
+Any commercial use requires a separate, written license agreement with the authors.
 
-No Warranty: The code is provided "as is" without warranty of any kind.
+3. CLINICAL USE DISCLAIMER
+This Software is a research tool only. It has NOT been approved for clinical use, diagnosis, patient management, or treatment by any regulatory authority (e.g., FDA, EMA, Swissmedic). It is not a medical device.
+
+4. ATTRIBUTION
+Any publication or presentation resulting from the use of this Software must cite the following paper:
+   Bauman G, Panos P, Bieri O. "VQ-Wave: A physics-driven spatio-temporal deep learning approach for non-contrast-enhanced lung ventilation and perfusion MRI." (Submitted), 2025.
+
+5. NO WARRANTY
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
