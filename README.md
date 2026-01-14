@@ -19,7 +19,7 @@ You can run the inference script directly on a folder of time-resolved DICOM ima
 
 ```bash
 # Basic usage for a single slice time-series
-python3 vqwave_inference.py --input_dir ./data/volunteer_01/slice_05 --output_dir ./results
+python3 vqwave_inference.py -d ./data/volunteer_01/slice_05 -m VQWaveModel.pt -o results.nrrd
 ```
 The script performs the following steps:
 1. Loads the DICOM time-series.
