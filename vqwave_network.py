@@ -1,3 +1,6 @@
+__author__      = "Grzegorz Baumann"
+__contact__     = "g.baumann@unibas.ch"
+
 import numpy as np
 import torch
 import torch.nn as nn
