@@ -45,3 +45,8 @@ The script performs the following steps:
 3. Reshapes the data into spatio-temporal patches (3x3 neighbors).
 4. Runs the pre-trained VQ-Wave model.
 5. Exports the ventilation and perfusion amplitude and phase maps.
+
+## Contact
+
+Grzegorz Baumann (g.baumann@unibas.ch)
+
