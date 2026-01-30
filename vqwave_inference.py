@@ -1,13 +1,19 @@
+#!/usr/bin/env python3
+
+__author__      = "Grzegorz Baumann"
+__contact__     = "g.baumann@unibas.ch"
+
 import argparse
 import numpy as np
 import torch
 import pydicom
-import nrrd
+from pydicom.dataset import Dataset, FileDataset
 import os
 import math
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 import seaborn
+import datetime
 
 def get_tag_value_as_float(ds, tag_name, alt_tag_hex=None):
     """
@@ -16,12 +22,11 @@ def get_tag_value_as_float(ds, tag_name, alt_tag_hex=None):
     """
     val_str = "0.0"
     
-    # Try attribute name first (e.g., 'AcquisitionTime')
     if hasattr(ds, tag_name):
         val = getattr(ds, tag_name)
         if val:
             val_str = str(val)
-    # Try alternative hex tag if provided (e.g., 0x0008, 0x002a)
+
     elif alt_tag_hex and alt_tag_hex in ds:
         val_str = str(ds[alt_tag_hex].value)
         
@@ -33,7 +38,6 @@ def get_tag_value_as_float(ds, tag_name, alt_tag_hex=None):
 def calculate_tr_from_dicom(dicoms):
     """
     Calculates the acquisition rate (TR) based on the first two available DICOMs.
-    Ported from C++ tlDataIO::getGDCMAcquisitionRate.
     """
     if len(dicoms) < 2:
         print("Warning: Not enough DICOMs to calculate TR. Defaulting to 0.3s")
@@ -47,17 +51,12 @@ def calculate_tr_from_dicom(dicoms):
     t1 = get_tag_value_as_float(d1, 'AcquisitionTime', 0x0008002a)
     t2 = get_tag_value_as_float(d2, 'AcquisitionTime', 0x0008002a)
 
-    # Extract Seconds part using the C++ logic:
-    # (Val/100 - floor(Val/100)) * 100 extracts the SS.frac part 
-    # Works for HHMMSS.frac and YYYYMMDDHHMMSS.frac
     t1_sec = ( (t1/100.0) - math.floor(t1/100.0) ) * 100.0
     t2_sec = ( (t2/100.0) - math.floor(t2/100.0) ) * 100.0
 
-    # Extract Instance Numbers
     inst1 = float(d1.InstanceNumber) if 'InstanceNumber' in d1 else 1.0
     inst2 = float(d2.InstanceNumber) if 'InstanceNumber' in d2 else 2.0
 
-    # Calculate Time Difference
     if t1_sec == t2_sec:
         print("Warning: Timestamps identical. Defaulting to 0.3s")
         return 0.3
@@ -84,34 +83,80 @@ def calculate_tr_from_dicom(dicoms):
     return tr_calc
 
 def load_dicoms(dicom_dir):
+    """
+    Loads a 2D+t DICOM series
+    """
     dicom_files = [f for f in os.listdir(dicom_dir) if f.lower().endswith('.dcm')]
     if not dicom_files:
-        raise ValueError("No DICOM files found in directory.")
-    
-    # Load and sort by InstanceNumber
+        raise ValueError("No DICOM files found.")
     dicoms = [pydicom.dcmread(os.path.join(dicom_dir, f)) for f in dicom_files]
     dicoms.sort(key=lambda x: int(x.InstanceNumber))
-    
-    # Calculate TR dynamically
     tr_val = calculate_tr_from_dicom(dicoms)
-    print(f"Detected TR: {tr_val:.4f} s")
-
-    height, width = dicoms[0].pixel_array.shape
     time_steps = len(dicoms)
-    data = np.zeros((height, width, time_steps), dtype=np.float32)
-    
+    print(f"Detected acquisition rate: {1.0/tr_val:.2f} images/second")
+    h, w = dicoms[0].pixel_array.shape
+    data = np.zeros((h, w, time_steps), dtype=np.float32)
     for t, ds in enumerate(dicoms):
         data[:, :, t] = ds.pixel_array.astype(np.float32)
-    
+        
     print(f"Loaded {time_steps} time steps, shape {data.shape}")
-    return data, tr_val
+    return data, tr_val, dicoms[0]
 
-def run_inference(data, tr_val, model_path, output_path, window_min, window_max):
+def save_as_dicom(data_map, reference_ds, output_filename, series_description, is_phase=False):
+    """
+    Saves functional maps with auto-calculated Windowing and proper 
+    handling of signed phase values using Slope/Intercept.
+    """
+    ds = reference_ds.copy()
+    ds.SeriesDescription = series_description
+    ds.SeriesNumber = int(ds.SeriesNumber) + 1000 if hasattr(ds, 'SeriesNumber') else 1000
+    ds.InstanceNumber = 1
+    ds.ContentDate = datetime.datetime.now().strftime('%Y%m%d')
+    ds.ContentTime = datetime.datetime.now().strftime('%H%M%S')
     
+    # --- PHYSICAL SCALING ---
+    if is_phase:
+        # Phase is roughly [-pi, pi]. Offset by 4 to make all values positive for uint16 storage
+        # and use a 0.0001 slope for high precision.
+        rescale_intercept = -4.0
+        rescale_slope = 0.0001
+    else:
+        # Amplitudes are positive
+        rescale_intercept = 0.0
+        rescale_slope = 0.01
+
+    # Map: PixelValue = (StoredValue * Slope) + Intercept 
+    # => StoredValue = (PixelValue - Intercept) / Slope
+    stored_data = ((data_map - rescale_intercept) / rescale_slope).astype(np.uint16)
+    
+    # --- AUTO WINDOWING (WW/WL) ---
+    # Calculate based on stored values for viewer compatibility
+    vmin, vmax = np.percentile(stored_data, [1, 99])
+    window_width = vmax - vmin
+    window_center = vmin + (window_width / 2)
+    
+    ds.WindowCenter = str(int(window_center))
+    ds.WindowWidth = str(int(window_width))
+    ds.RescaleSlope = f"{rescale_slope:.6f}"
+    ds.RescaleIntercept = str(int(rescale_intercept))
+    
+    ds.BitsAllocated, ds.BitsStored, ds.HighBit = 16, 16, 15
+    ds.PixelRepresentation = 0 # Unsigned uint16 (Offset handled by RescaleIntercept)
+    ds.PixelData = stored_data.tobytes()
+    ds.save_as(output_filename)
+    print(f"DICOM saved: {output_filename} ({series_description})")
+
+def run_inference(data, tr_val, model_path, output_dir, window_min, window_max, ref_dicom): 
+    """
+    Run the model and generate output data as PNG and DICOM
+    """
     height, width, time_steps = data.shape
     model_input_len = 190
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
+    
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)    
     
     # Load JIT model
     try:
@@ -149,14 +194,14 @@ def run_inference(data, tr_val, model_path, output_path, window_min, window_max)
             # Flatten spatial dims -> (9, Time)
             neighbors = patch_3x3.reshape(9, -1) 
             
-            # --- PREPROCESSING ---
+            # PREPROCESSING
             means = np.mean(neighbors, axis=1, keepdims=True)
             means[means < 1e-6] = 1.0 
             
             # Soft Normalization
             norm_neighbors = (neighbors - means) / (means + stabilizer)
             
-            # --- INPUT TENSOR CONSTRUCTION ---
+            # INPUT TENSOR CONSTRUCTION
             input_sample = np.zeros((10, model_input_len), dtype=np.float32)
             limit = min(time_steps, model_input_len)
             
@@ -172,7 +217,7 @@ def run_inference(data, tr_val, model_path, output_path, window_min, window_max)
             batch_data.append(input_sample)
             pixel_coords.append((x, y))
             
-            # --- BATCH EXECUTION ---
+            # BATCH EXECUTION
             if len(pixel_coords) >= batch_size or (x == width-1 and y == height-1):
                 input_tensor = torch.tensor(np.array(batch_data)).to(device)
                 
@@ -187,7 +232,7 @@ def run_inference(data, tr_val, model_path, output_path, window_min, window_max)
                     out_v = max(output[i, 0], 0.0)
                     out_q = max(output[i, 1], 0.0)
 
-                    # Scale back to Absolute Amplitude
+                    # Scale back to absolute amplitude
                     vamp[px, py] = (out_v * (local_base + stabilizer)) 
                     qamp[px, py] = (out_q * (local_base + stabilizer))                        
                     
@@ -197,7 +242,6 @@ def run_inference(data, tr_val, model_path, output_path, window_min, window_max)
                 batch_data = []
                 pixel_coords = []
 
-    # --- FRACTIONAL VENTILATION ---
     print("Calculating Fractional Ventilation Map...")
     eps = 1e-5
     fv_map = vamp / (baseline_map + (vamp / 2.0) + eps)
@@ -211,14 +255,13 @@ def run_inference(data, tr_val, model_path, output_path, window_min, window_max)
     
     ax1 = plt.subplot(2, 3, 1)
     ax1.imshow(vamp, cmap='gray', vmin=window_min, vmax=window_max)
-    ax1.set_title(f'Ventilation Amp (Abs) [TR={tr_val:.3f}s]') 
+    ax1.set_title('Ventilation Amp (Abs)') 
     ax1.axis('off')
 
     ax2 = plt.subplot(2, 3, 2)
     im2 = ax2.imshow(fv_map, cmap='gray', vmin=0, vmax=0.3) 
     ax2.set_title('Fractional Ventilation (FV)')
     ax2.axis('off')
-    plt.colorbar(im2, ax=ax2, fraction=0.046, pad=0.04)
 
     ax3 = plt.subplot(2, 3, 3)
     ax3.imshow(qamp, cmap='gray', vmin=window_min, vmax=window_max*1.1)
@@ -243,29 +286,27 @@ def run_inference(data, tr_val, model_path, output_path, window_min, window_max)
     
     plt.tight_layout()
     plt.show()
+    plt.savefig(os.path.join(output_dir, "VQWave_Summary.png"), dpi=300)
+    print(f"Summary PNG saved to {output_dir}")    
 
-    # Save NRRD
-    maps = np.stack([
-        np.rot90(vamp), 
-        np.rot90(qamp), 
-        np.rot90(vtime), 
-        np.rot90(qtime),
-        np.rot90(fv_map)
-    ], axis=-1)
-    
-    header = {'encoding': 'gzip', 'space': 'left-posterior-superior'}
-    nrrd.write(output_path, maps, header)
-    print(f"Saved maps to {output_path}")
+    save_as_dicom(vamp, ref_dicom, os.path.join(output_dir, "VQ_Vent_Amp.dcm"), "VQ-Wave Ventilation Amp")
+    save_as_dicom(qamp, ref_dicom, os.path.join(output_dir, "VQ_Perf_Amp.dcm"), "VQ-Wave Perfusion Amp")
+    save_as_dicom(fv_map, ref_dicom, os.path.join(output_dir, "VQ_FV.dcm"), "VQ-Wave Fractional Ventilation")
+    save_as_dicom(vtime, ref_dicom, os.path.join(output_dir, "VQ_Vent_Phase.dcm"), "VQ-Wave Vent Phase", is_phase=True)
+    save_as_dicom(qtime, ref_dicom, os.path.join(output_dir, "VQ_Perf_Phase.dcm"), "VQ-Wave Perf Phase", is_phase=True)    
+    print(f"Saved maps to {output_dir}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="VQ-Wave Inference Script for DICOM Data")
     parser.add_argument("-d", "--dicom_dir", required=True, help="Path to directory containing DICOM time-series")
-    parser.add_argument("-m", "--model", default="VQWaveNetwork_V13.pt", help="Path to the trained model (.pt)")
-    parser.add_argument("-o", "--output", default="output_maps.nrrd", help="Filename for the output NRRD file")
+    parser.add_argument("-m", "--model", default="VQWaveNetwork_V11.pt", help="Path to the trained model (.pt)")
+    parser.add_argument("-o", "--output", default="results", help="Output directory")
     parser.add_argument("--window_min", type=float, default=None, help="Min value for plotting")
     parser.add_argument("--window_max", type=float, default=None, help="Max value for plotting")
     args = parser.parse_args()
     
-    data, tr_val = load_dicoms(args.dicom_dir)
-    run_inference(data, tr_val, args.model, args.output, args.window_min, args.window_max)
+    data, tr_val, ref_ds = load_dicoms(args.dicom_dir)
+    run_inference(data, tr_val, args.model, args.output, args.window_min, args.window_max, ref_ds)
+    
+
     
