@@ -48,5 +48,7 @@ The script performs the following steps:
 
 ## Contact
 
-Grzegorz Baumann (g.baumann@unibas.ch)
+Grzegorz Baumann, PhD
+University of Basel
+Magnetic Resonance Physics & Methodology
 
