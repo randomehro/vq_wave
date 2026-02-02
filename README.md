@@ -36,8 +36,7 @@ pip install -r requirements.txt
 You can run the inference script directly on a folder of time-resolved DICOM images.
 
 ```bash
-# Basic usage for a single slice time-series
-python3 vqwave_inference.py -d test_data -m VQWaveModel_V11.pt -o results
+python3 vqwave_inference.py -d test_data -m VQWaveNetwork_V11.pt -o results
 ```
 The script performs the following steps:
 1. Loads the DICOM time-series.
