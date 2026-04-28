@@ -138,9 +138,6 @@ def save_as_dicom(data_map, reference_ds, output_filename, series_description, i
     ds.WindowCenter = f"{window_center:.4f}"
     ds.WindowWidth = f"{window_width:.4f}"
     
-    ds.WindowCenter = str(int(window_center))
-    ds.WindowWidth = str(int(window_width))
-    
     ds.RescaleSlope = f"{rescale_slope:.6f}"
     ds.RescaleIntercept = str(int(rescale_intercept))
     
