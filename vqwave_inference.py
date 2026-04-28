@@ -131,12 +131,16 @@ def save_as_dicom(data_map, reference_ds, output_filename, series_description, i
     
     # --- AUTO WINDOWING (WW/WL) ---
     # Calculate based on stored values for viewer compatibility
-    vmin, vmax = np.percentile(stored_data, [1, 99])
+    vmin, vmax = np.percentile(data_map, [1, 99])
     window_width = vmax - vmin
     window_center = vmin + (window_width / 2)
     
+    ds.WindowCenter = f"{window_center:.4f}"
+    ds.WindowWidth = f"{window_width:.4f}"
+    
     ds.WindowCenter = str(int(window_center))
     ds.WindowWidth = str(int(window_width))
+    
     ds.RescaleSlope = f"{rescale_slope:.6f}"
     ds.RescaleIntercept = str(int(rescale_intercept))
     
@@ -285,8 +289,8 @@ def run_inference(data, tr_val, model_path, output_dir, window_min, window_max, 
     ax6.axis('off')
     
     plt.tight_layout()
-    plt.show()
     plt.savefig(os.path.join(output_dir, "VQWave_Summary.png"), dpi=300)
+    plt.show()
     print(f"Summary PNG saved to {output_dir}")    
 
     save_as_dicom(vamp, ref_dicom, os.path.join(output_dir, "VQ_Vent_Amp.dcm"), "VQ-Wave Ventilation Amp")
@@ -307,6 +311,4 @@ if __name__ == "__main__":
     
     data, tr_val, ref_ds = load_dicoms(args.dicom_dir)
     run_inference(data, tr_val, args.model, args.output, args.window_min, args.window_max, ref_ds)
-    
-
     
