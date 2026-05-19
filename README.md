@@ -2,9 +2,9 @@
 
 This repository contains the official PyTorch implementation, **pre-trained model**, and inference framework for **VQ-Wave**, as described in the paper:
 
-> **VQ-Wave: A physics-driven spatio-temporal deep learning approach for non-contrast-enhanced lung ventilation and perfusion MRI**
-> *Bauman G, Panos P, Bieri O.*
-> (Submitted), 2026.
+> **VQ-Wave: A Physics-Driven Spatiotemporal Deep Learning Approach for Noncontrast-Enhanced Lung Ventilation and Perfusion MRI**
+> *Bauman G, Panos P, Latzin P, Bieri O.*
+> Magn Reson Med. 2026 May 10. doi: 10.1002/mrm.70423.
 
 ## Scope of Repository
 This repository provides the tools necessary to replicate the inference results described in the manuscript using the provided pre-trained weights.
