@@ -28,7 +28,7 @@ pip install -r requirements.txt
 ## Contents
 * `vqwave_model.py`: Complete PyTorch implementation of the Spatio-Temporal Inception Network, including the custom Squeeze-and-Excitation (SE) blocks and hybrid pooling layers.
 * `vqwave_inference.py`: Script for model inference which can be used to process time-resolved two-dimensional functional MRI data in DICOM format.
-* `VQWaveNetwork_V11.pt`: Pre-trained model weights (trained on synthetic physics-based signals).
+* `VQWaveNetwork_V1X.pt`: Pre-trained model weights (trained on synthetic physics-based signals).
 * `test_data.zip`: Contains a sample anonymized DICOM time-series acquired in healthy volunteer with ultra-fast bSSFP for testing purposes.
 * `requirements.txt`: Module versions for the installation process.
 
@@ -36,7 +36,7 @@ pip install -r requirements.txt
 You can run the inference script directly on a folder of time-resolved DICOM images.
 
 ```bash
-python3 vqwave_inference.py -d test_data -m VQWaveNetwork_V11.pt -o results
+python3 vqwave_inference.py -d test_data -m VQWaveNetwork_V1X.pt -o results
 ```
 The script performs the following steps:
 1. Loads the DICOM time-series.
